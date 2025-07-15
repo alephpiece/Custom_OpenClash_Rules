@@ -82,16 +82,20 @@ SMART_ENABLE=$(uci get openclash.config.smart_enable 2>/dev/null)
 if [ "$SMART_ENABLE" = "1" ]; then
   echo "检测到 Smart 内核已开启。"
   echo "正在获取最新 Smart 内核模型文件信息..."
-  # 获取最新带Model字样的release中的Model-large.bin下载链接
+  # 获取最新 Model-large.bin 下载链接（纯shell方案）
   MODEL_URL=$(curl -s "https://api.github.com/repos/vernesong/mihomo/releases" \
-    | grep -E '"tag_name":|"name":|"browser_download_url":' \
     | awk '
-      /"tag_name":/ {tag=$2; gsub(/\"|,/, "", tag)}
-      /"name":/ && /Model/ {model=1}
-      /"browser_download_url":/ && model && /Model-large\.bin/ {
-        url=$2; gsub(/\"|,/, "", url); print url; exit
+      BEGIN {RS="{"; FS="\n"}
+      /"name": "Model-large\\.bin"/ {
+        for (i=1; i<=NF; i++) {
+          if ($i ~ /"browser_download_url":/) {
+            gsub(/.*"browser_download_url": "/, "", $i)
+            gsub(/".*/, "", $i)
+            print $i
+            exit
+          }
+        }
       }
-      /"name":/ {model=0}
     ')
   if [ -n "$MODEL_URL" ]; then
     MODEL_URL_JSDELIVR=$(echo "$MODEL_URL" | sed 's#https://github.com/vernesong/mihomo/releases/download/#https://testingcf.jsdelivr.net/gh/vernesong/mihomo@releases/download/#')
