@@ -77,8 +77,38 @@ fi
 # 安装成功提示
 echo "OpenClash Dev 最新版安装成功！"
 
-# 清理临时文件
-rm -f "$TEMP_FILE"
+# 检查 Smart 内核是否启用，并下载模型文件
+SMART_ENABLE=$(uci get openclash.config.smart_enable 2>/dev/null)
+if [ "$SMART_ENABLE" = "1" ]; then
+  echo "检测到 Smart 内核已开启。"
+  echo "正在获取最新 Smart 内核模型文件信息..."
+  # 获取最新带Model字样的release中的Model-large.bin下载链接
+  MODEL_URL=$(curl -s "https://api.github.com/repos/vernesong/mihomo/releases" \
+    | grep -E '"tag_name":|"name":|"browser_download_url":' \
+    | awk '
+      /"tag_name":/ {tag=$2; gsub(/\"|,/, "", tag)}
+      /"name":/ && /Model/ {model=1}
+      /"browser_download_url":/ && model && /Model-large\.bin/ {
+        url=$2; gsub(/\"|,/, "", url); print url; exit
+      }
+      /"name":/ {model=0}
+    ')
+  if [ -n "$MODEL_URL" ]; then
+    MODEL_URL_JSDELIVR=$(echo "$MODEL_URL" | sed 's#https://github.com/vernesong/mihomo/releases/download/#https://testingcf.jsdelivr.net/gh/vernesong/mihomo@releases/download/#')
+    MODEL_PATH="/etc/openclash/Model.bin"
+    echo "正在下载最新 Smart 内核模型文件..."
+    wget -q -O "$MODEL_PATH" "$MODEL_URL_JSDELIVR"
+    if [ $? -eq 0 ]; then
+      echo "Smart 内核模型文件下载成功：$MODEL_PATH"
+    else
+      echo "Smart 内核模型文件下载失败，请检查网络或手动下载。"
+    fi
+  else
+    echo "未能获取到 Smart 内核模型文件的下载链接。Smart 内核启动时会自动下载模型文件。"
+  fi
+else
+  echo "检测到 Smart 内核未启用。"
+fi
 
 # 加载 OpenClash 预设配置（如果存在）
 # 个性化 OpenClash 配置请写入 /etc/config/openclash-set 文件，刷机后运行本脚本会加载对应的设置
@@ -173,3 +203,6 @@ uci set openclash.config.enable='1'
 uci commit openclash
 /etc/init.d/openclash restart >/dev/null 2>&1
 echo "脚本运行完毕！"
+
+# 清理临时文件
+rm -f "$TEMP_FILE"
